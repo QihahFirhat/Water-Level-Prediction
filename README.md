@@ -34,6 +34,39 @@ The project uses historical water-level data to study changes between hourly obs
 
 The exact model, evaluation procedure, output filenames, and workbook layout depend on the implementation in `reconstruct_water_level.py`. Check the script's configuration and terminal messages for the settings actually used.
 
+## Techniques used
+
+This project combines **time-series data preprocessing, data visualization, interpolation, and supervised machine learning**.
+
+| Technique | Where it is used | Purpose |
+| --- | --- | --- |
+| **Time-series preprocessing** (pandas) | Both scripts | Parses 12-hour/24-hour times, converts water levels to numeric values, sorts readings chronologically, and handles invalid rows. |
+| **Exploratory data analysis (EDA) and line charts** (Matplotlib / Excel charts) | Historical analysis and reconstruction | Visualizes daily changes in water level and compares reconstructed curves with actual hourly readings. |
+| **Linear interpolation** | Reconstruction | Establishes a baseline estimate at 10, 20, 30, 40, and 50 minutes between two observed hourly values. |
+| **Random Forest Regression** (scikit-learn) | Reconstruction, when enabled and validated | Learns corrections to the linear-interpolation estimate from historical 10-minute data. It uses the two bounding hourly levels, their difference, the within-hour position, and time-of-day features. |
+| **Cyclical time-of-day encoding** (sine/cosine) | Random Forest features | Represents the repeating 24-hour clock without an artificial discontinuity between late night and midnight. |
+| **Historical holdout validation** | Model evaluation | Simulates hourly-only measurements from historical 10-minute records and tests estimates against the withheld intermediate measurements. Days are separated between training and validation to reduce data leakage. |
+| **Mean Absolute Error (MAE)** | Model evaluation | Measures the average absolute difference between estimated and actual readings, in metres. |
+| **Hybrid model selection** | Reconstruction | Uses the learned Random Forest correction only when validation demonstrates sufficient improvement over linear interpolation; otherwise uses the simpler interpolation baseline. |
+
+### Reconstruction method
+
+For two consecutive measured hourly levels, the starting estimate at a fraction `f` of the hour is:
+
+```text
+Linear estimate = starting level + f × (ending level − starting level)
+```
+
+If the learned correction model performs better in validation:
+
+```text
+Reconstructed level = linear estimate + predicted Random Forest correction
+```
+
+The **original hourly measurements remain unchanged**. Only the five intermediate 10-minute values within an observed, consecutive one-hour interval are estimated. This approach does **not** recover unobserved rapid fluctuations with certainty.
+
+> **Model verification:** The description above reflects the reconstruction approach developed for this project. Check the committed `reconstruct_water_level.py` for the final hyperparameters, validation split, model-selection threshold, and output settings, as these may differ between versions.
+
 ## Input data format
 
 Each Excel worksheet should represent **one date**. Worksheets can have different date-based names. Both workbooks should include these column headers:
